@@ -40,8 +40,9 @@
     General Purpose x86_64 Instructions
       PUSHQ %REG - Push Quadword on Stack
       POPQ %REG - Pop Quadword on Stack
-      MOVQ %DEST %SRC - Move Quadword 
-    
+      MOVQ %DEST %SRC - Move Quadword
+	  The LEAVE instruction copies the frame pointer (in the EBP register) into the stack pointer register (ESP), which releases the stack space allocated to the stack frame. The old frame pointer (the frame pointer for the calling procedure that was saved by the ENTER
+instruction) is then popped from the stack into the EBP register, restoring the calling procedure’s stack frame. A RET instruction is commonly executed following a LEAVE instruction to return program control to the calling procedure.  
     General Purpose x86_32 Instructions
       MOVL %DEST %SRC - Move Longword
 =end
@@ -50,6 +51,7 @@ class Compiler
   
   def initialize
     @string_constants = {}
+	@general_purpose_registers = ["%r9d", "%r8d", "%ecx", "%edx", "%esi", "%edi"]
     @id = 0
   end
 
@@ -59,6 +61,7 @@ class Compiler
     id = @id
     @id += 1
     @string_constants[anArgument] = id #create key/value (id/anArgument) pairs on string_constants hash
+  	return id
   end
   
   def output_constants
@@ -70,20 +73,24 @@ class Compiler
   end
 
   def header
+    output_constants
     puts "\t.text"
-    puts "\t.globl main"
+    puts "\t.globl \tmain"
     puts "\t.type	main, @function"
     puts "main:"
     puts ".LFB0:"
     puts"\t.cfi_startproc"
+    save_context
   end
   
   def save_context
-    puts "\tpushq %rbp"
+    puts "\tpushq \t%rbp"
   end
   
   def restore_context
-    puts "\tpopq %rbp"
+  	puts "\tleave"
+	#add @offset, %rbp
+    #puts "\tpopq %rbp"
   end
   
   def prolog
@@ -92,38 +99,46 @@ class Compiler
     puts "\tmovq	%rsp, %rbp"
   end
 
-  def epilog
-    puts "\t.cfi_def_cfa 7, 8"
-    puts "\tret"
-    puts "\t.cfi_endproc"
-  end
-  
   def global_epilog
     puts ".LFE0:"
     puts "\t.size	main, .-main"
     puts "\t.ident	\"Compiler 0.1\""
     puts "\t.section	.note.GNU-stack,\"\",@progbits"
   end
-
+  
+  def epilog
+    restore_context
+    puts "\t.cfi_def_cfa 7, 8"
+    puts "\tret"
+    puts "\t.cfi_endproc"
+    global_epilog
+  end
+  
   def compile(anExp)
     call = anExp[0].to_s
     args = anExp[1..-1].collect {|arg| get_arg(arg)}
-
-    output_constants
     header
-    save_context
     prolog
     puts "\t.cfi_def_cfa_register 6"
-    args.each do |arg|
-      puts "\tmovl\t$.LC#{arg}, %edi"
+	stack_args = []
+	stack_args = args.slice!(6..-1)
+	if !stack_args.nil? then
+	  if !stack_args.empty? then
+		  offset = (stack_args.size)*8
+		  puts "\tsubq \t$#{offset}, %rsp"
+		  stack_args.each do |arg|
+			  puts "\tmovq\t$.LC#{arg}, #{offset -= 8}(%rsp)"
+		  end
+	  end
+	end
+    while !args.empty? && !@general_purpose_registers.empty?
+      puts "\tmovl\t$.LC#{args.pop}, #{@general_purpose_registers.pop}"
     end
     puts "\tcall\t#{call}"
-    restore_context
     epilog
-    global_epilog
   end
 end
 
-aProg = [:puts, "Hello World"]
+aProg = [:puts, "Hello World", "a", "x", "xxx", "aaa", "aaaaaaaaa", "xxxxxxxxxxxxxxxxxxxXXXXX", "z", "xxx"]
 
 Compiler.new.compile(aProg)
