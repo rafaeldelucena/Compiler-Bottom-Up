@@ -76,7 +76,7 @@ class Compiler
     end
   end
 
-  def header
+  def prolog
     output_constants
     puts "\t.text"
     puts "\t.globl \tmain"
@@ -84,39 +84,22 @@ class Compiler
     puts "main:"
     puts ".LFB0:"
     puts"\t.cfi_startproc"
-    save_context
-  end
-  
-  def save_context
     puts "\tpushq \t%rbp"
-  end
-  
-  def restore_context
-  	puts "\tleave"
-	#add @offset, %rbp
-    #puts "\tpopq %rbp"
-  end
-  
-  def prolog
     puts "\t.cfi_def_cfa_offset 16"
     puts "\t.cfi_offset 6, -16"
     puts "\tmovq	%rsp, %rbp"
     puts "\t.cfi_def_cfa_register 6"
   end
-
-  def global_epilog
+  
+  def epilog
+  	puts "\tleave" # Recupera o contexto da Stack
+    puts "\t.cfi_def_cfa 7, 8"
+    puts "\tret"
+    puts "\t.cfi_endproc"
     puts ".LFE0:"
     puts "\t.size	main, .-main"
     puts "\t.ident	\"Compiler 0.1\""
     puts "\t.section	.note.GNU-stack,\"\",@progbits"
-  end
-  
-  def epilog
-    restore_context
-    puts "\t.cfi_def_cfa 7, 8"
-    puts "\tret"
-    puts "\t.cfi_endproc"
-    global_epilog
   end
   
   def compile(anExp)
@@ -130,7 +113,6 @@ class Compiler
     call = anExp[0].to_s
     args = anExp[1..-1].collect {|arg| get_arg(arg)}
 	stack_args = args.slice!(6..-1) if args.size > 6
-    header
     prolog
 	if !stack_args.nil? then
 	  offset = (stack_args.size)*8
@@ -147,6 +129,6 @@ class Compiler
   end
 end
 
-aProg = [:puts, "Hello World", "hehe", "aa", "bb", "cc", "dd", "xx", "ddddd", "xxxx"]
+aProg = [:puts, "H", "e", "l", "l", "o", " ", "W", "o", "r", "l", "d", "Compiler"]
 
 Compiler.new.compile(aProg)
