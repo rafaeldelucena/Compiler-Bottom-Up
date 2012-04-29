@@ -56,6 +56,10 @@ class Compiler
   end
 
   def get_arg(anArgument)
+  	if anArgument.is_a?(Array) then
+		compile(anArgument)
+		return nil
+	end
     id = @string_constants[anArgument]
     return id if id #if string_constants[anArgument].not_exists then id.nil
     id = @id
@@ -97,6 +101,7 @@ class Compiler
     puts "\t.cfi_def_cfa_offset 16"
     puts "\t.cfi_offset 6, -16"
     puts "\tmovq	%rsp, %rbp"
+    puts "\t.cfi_def_cfa_register 6"
   end
 
   def global_epilog
@@ -115,30 +120,33 @@ class Compiler
   end
   
   def compile(anExp)
+  	if anExp[0] == :do then
+    	anExp[1..-1].each do |exp|
+			compile(exp)
+		end
+		return
+	end
+		
     call = anExp[0].to_s
     args = anExp[1..-1].collect {|arg| get_arg(arg)}
+	stack_args = args.slice!(6..-1) if args.size > 6
     header
     prolog
-    puts "\t.cfi_def_cfa_register 6"
-	stack_args = []
-	stack_args = args.slice!(6..-1)
 	if !stack_args.nil? then
-	  if !stack_args.empty? then
-		  offset = (stack_args.size)*8
-		  puts "\tsubq \t$#{offset}, %rsp"
-		  stack_args.each do |arg|
-			  puts "\tmovq\t$.LC#{arg}, #{offset -= 8}(%rsp)"
-		  end
+	  offset = (stack_args.size)*8
+	  puts "\tsubq \t$#{offset}, %rsp"
+	  while !stack_args.empty?
+		puts "\tmovq\t$.LC#{stack_args.shift}, #{offset -= 8}(%rsp)"
 	  end
 	end
-    while !args.empty? && !@general_purpose_registers.empty?
-      puts "\tmovl\t$.LC#{args.pop}, #{@general_purpose_registers.pop}"
+    while !args.empty?
+      puts "\tmovl\t$.LC#{args.shift}, #{@general_purpose_registers.pop}"
     end
     puts "\tcall\t#{call}"
     epilog
   end
 end
 
-aProg = [:puts, "Hello World", "a", "x", "xxx", "aaa", "aaaaaaaaa", "xxxxxxxxxxxxxxxxxxxXXXXX", "z", "xxx"]
+aProg = [:puts, "Hello World", "hehe", "aa", "bb", "cc", "dd", "xx", "ddddd", "xxxx"]
 
 Compiler.new.compile(aProg)

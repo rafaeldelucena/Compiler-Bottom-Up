@@ -2,6 +2,9 @@
 	.section	.rodata
 .LC0:
 	.string	"Hello World"
+	.align 8
+.LC1:
+	.string	"'Hello World' takes %ld bytes\n"
 	.text
 	.globl	main
 	.type	main, @function
@@ -14,6 +17,10 @@ main:
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
 	movl	$.LC0, %edi
+	movl	$0, %eax
+	call	foo
+	movl	%eax, %esi
+	movl	$.LC1, %edi
 	call	puts
 	popq	%rbp
 	.cfi_def_cfa 7, 8
