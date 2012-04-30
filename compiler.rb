@@ -66,7 +66,7 @@ class Compiler
     id = @id
     @id += 1
     @string_constants[anArgument] = id #create key/value (id/anArgument) pairs on string_constants hash
-  	return [:strConst, id]
+	return [:strConst, id]
   end
   
   def output_constants
@@ -93,7 +93,6 @@ class Compiler
   end
 
   def prolog
-    output_constants
     puts "\t.text"
     puts "\t.globl \tmain"
     puts "\t.type	main, @function"
@@ -146,6 +145,7 @@ class Compiler
     prolog
 	compile_exp(anExp)
     epilog
+    output_constants
   end
 end
 aProg = [:puts, "Hello", "World", "!!"]
