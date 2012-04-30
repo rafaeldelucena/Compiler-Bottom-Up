@@ -51,21 +51,22 @@ class Compiler
   
   def initialize
     @string_constants = {}
-	@general_purpose_registers = ["%r9d", "%r8d", "%ecx", "%edx", "%esi", "%edi"]
+	@arg_regs = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"]
     @id = 0
   end
 
   def get_arg(anArgument)
-  	if anArgument.is_a?(Array) then
-		compile(anArgument)
-		return nil
+  	if anArgument.is_a?(Array)
+		compile_exp(anArgument)
+		return [:subExp]
 	end
-    id = @string_constants[anArgument]
+    
+	id = @string_constants[anArgument]
     return id if id #if string_constants[anArgument].not_exists then id.nil
     id = @id
     @id += 1
     @string_constants[anArgument] = id #create key/value (id/anArgument) pairs on string_constants hash
-  	return id
+  	return [:strConst, id]
   end
   
   def output_constants
@@ -73,6 +74,21 @@ class Compiler
     @string_constants.each do |value, key|
       puts ".LC#{key}:"
       puts "\t.string \"#{value}\""
+    end
+  end
+
+  def allocate_args(anArgs)
+  	_args = anArgs
+	stack_args = _args.slice!(@arg_regs.size..-1) if anArgs.size > @arg_regs.size
+	if !stack_args.nil? then
+	  offset = (stack_args.size)*8
+	  puts "\tsubq \t$#{offset}, %rsp"
+	  while !stack_args.empty?
+		puts "\tmovq\t#{stack_args.shift}, #{offset -= 8}(%rsp)"
+	  end
+	end
+    _args.each_with_index do |arg, i|
+    	puts "\tmovq\t#{arg}, #{@arg_regs[i]}"
     end
   end
 
@@ -101,34 +117,46 @@ class Compiler
     puts "\t.ident	\"Compiler 0.1\""
     puts "\t.section	.note.GNU-stack,\"\",@progbits"
   end
-  
-  def compile(anExp)
+
+  def compile_exp(anExp)
   	if anExp[0] == :do then
     	anExp[1..-1].each do |exp|
-			compile(exp)
+			compile_exp(exp)
 		end
-		return
+		return	
 	end
 		
+	args = []
     call = anExp[0].to_s
-    args = anExp[1..-1].collect {|arg| get_arg(arg)}
-	stack_args = args.slice!(6..-1) if args.size > 6
-    prolog
-	if !stack_args.nil? then
-	  offset = (stack_args.size)*8
-	  puts "\tsubq \t$#{offset}, %rsp"
-	  while !stack_args.empty?
-		puts "\tmovq\t$.LC#{stack_args.shift}, #{offset -= 8}(%rsp)"
-	  end
+	anExp[1..-1].each do |arg|
+		aType, aParam = get_arg(arg)
+		if anExp[0] != :do then
+			if aType == :strConst
+				args << "$.LC#{aParam}"
+			else
+				args << "%rax"
+			end
+		end
 	end
-    while !args.empty?
-      puts "\tmovl\t$.LC#{args.shift}, #{@general_purpose_registers.pop}"
-    end
+	allocate_args(args)
     puts "\tcall\t#{call}"
+  end
+  
+  def compile(anExp)
+    prolog
+	compile_exp(anExp)
     epilog
   end
 end
+aProg = [:puts, "Hello", "World", "!!"]
+=begin
+aProg = [:do,
+	[:puts, "Chainning"], 
+	[:printf, "Expressions", ","],
+	[:puts, "with"],
+	[:puts, "do", "!!"],
+]	
+=end
 
-aProg = [:puts, "H", "e", "l", "l", "o", " ", "W", "o", "r", "l", "d", "Compiler"]
-
+#aProg = [:puts, "Adding sub-%ld",[:printf, "expressions"]]
 Compiler.new.compile(aProg)
